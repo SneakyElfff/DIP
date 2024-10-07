@@ -28,7 +28,21 @@ def find_contours(mask):
 
 
 def filter_contours(contours, min_area=1000):
-    return [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
+    filtered_contours = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area > min_area:
+            # Approximate the contour to detect its shape
+            approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
+
+            # Bounding box to check aspect ratio and size consistency
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = w / float(h)
+
+            # Filter by area and aspect ratio (between roughly 0.8 and 1.2 for squares and regular polygons)
+            if 0.8 <= aspect_ratio <= 1.4:
+                filtered_contours.append(cnt)
+    return filtered_contours
 
 
 def create_mask_from_contours(image_shape, contours):
@@ -47,7 +61,7 @@ def process_image(file_path):
     # Find contours
     contours = find_contours(blue_mask)
 
-    # Filter contours by area
+    # Filter contours by area and bounding box aspect ratio
     large_contours = filter_contours(contours)
 
     # Create a mask from filtered contours
@@ -57,9 +71,9 @@ def process_image(file_path):
     result = cv2.bitwise_and(original, original, mask=final_mask)
 
     # Save results
-    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/blue_objects.jpg', blue_objects)
-    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/final_result.jpg', result)
+    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/blue_objects_filtered.jpg', blue_objects)
+    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/final_result_filtered.jpg', result)
 
 
 # Usage
-process_image('/Users/nina/PycharmProjects/DIP/ImageFiltering/figures/1695138157752.jpg')
+process_image('/Users/nina/PycharmProjects/DIP/ImageFiltering/figures/1725544579789.jpg')
