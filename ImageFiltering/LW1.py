@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import os
+import matplotlib.pyplot as plt
 
 
 def load_image(file_path):
@@ -51,8 +53,7 @@ def create_mask_from_contours(image_shape, contours):
     return mask
 
 
-def process_image(file_path):
-    # Load the image
+def process_image(file_path, output_dir):
     original = load_image(file_path)
 
     # Isolate blue objects
@@ -70,10 +71,42 @@ def process_image(file_path):
     # Apply the final mask to the original image
     result = cv2.bitwise_and(original, original, mask=final_mask)
 
-    # Save results
-    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/blue_objects_filtered.jpg', blue_objects)
-    cv2.imwrite('/Users/nina/PycharmProjects/DIP/ImageFiltering/results/final_result_filtered.jpg', result)
+    # Генерируем имена выходных файлов на основе входного имени файла
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    cv2.imwrite(os.path.join(output_dir, f'{base_name}_final_result.jpg'), result)
+
+    return original, result
 
 
-# Usage
-process_image('/Users/nina/PycharmProjects/DIP/ImageFiltering/figures/1725544579789.jpg')
+def display_images(original, processed, title):
+    plt.figure(figsize=(12, 6))
+    plt.subplot(121)
+    plt.imshow(cv2.cvtColor(original, cv2.COLOR_BGR2RGB))
+    plt.title('Оригинал')
+    plt.axis('off')
+
+    plt.subplot(122)
+    plt.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
+    plt.title('Обработанное')
+    plt.axis('off')
+
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def process_folder(input_folder, output_folder):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for filename in os.listdir(input_folder):
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+            file_path = os.path.join(input_folder, filename)
+            original, processed = process_image(file_path, output_folder)
+            display_images(original, processed, f"Обработка изображения: {filename}")
+            print(f"Обработан файл: {filename}")
+
+
+input_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/figures'
+output_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/results'
+process_folder(input_folder, output_folder)
