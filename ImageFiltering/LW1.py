@@ -71,11 +71,16 @@ def process_image(file_path, output_dir):
     # Apply the final mask to the original image
     result = cv2.bitwise_and(original, original, mask=final_mask)
 
-    # Генерируем имена выходных файлов на основе входного имени файла
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    cv2.imwrite(os.path.join(output_dir, f'{base_name}_final_result.jpg'), result)
+    # **Draw contours on the processed image**:
+    # This will outline the detected blue objects
+    result_with_contours = result.copy()
+    cv2.drawContours(result_with_contours, large_contours, -1, (0, 255, 0), 3)  # Green contours with thickness 3
 
-    return original, result
+    # Save final result with contours
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    cv2.imwrite(os.path.join(output_dir, f'{base_name}_final_result_with_contours.jpg'), result_with_contours)
+
+    return original, result_with_contours
 
 
 def display_images(original, processed, title):
@@ -87,7 +92,7 @@ def display_images(original, processed, title):
 
     plt.subplot(122)
     plt.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
-    plt.title('Обработанное')
+    plt.title('Обработанное с контурами')
     plt.axis('off')
 
     plt.suptitle(title)
