@@ -55,26 +55,29 @@ def create_mask_from_contours(image_shape, contours):
     return mask
 
 
+def draw_contours(image, contours):
+    # для улучшения внешнего вида контуров
+    result_with_contours = image.copy()
+
+    result_with_contours = cv2.GaussianBlur(result_with_contours, (5, 5), 0)
+
+    cv2.drawContours(result_with_contours, contours, -1, (0, 255, 255), 10)
+
+    return result_with_contours
+
+
 def edit_image(file_path, output_dir):
     original_image = load_image(file_path)
 
     objects, colour_mask = isolate_objects(original_image)
 
     contours = find_contours(colour_mask)
-
-    # отфильтровать объекты по площади и форме
-    large_contours = filter_contours(contours)
+    large_contours = filter_contours(contours)  # отфильтровать объекты по площади и форме
 
     final_mask = create_mask_from_contours(original_image.shape, large_contours)
-
     result_image = cv2.bitwise_and(original_image, original_image, mask=final_mask)
 
-    result_with_contours = result_image.copy()
-
-    # для улучшения внешнего вида контуров
-    result_with_contours = cv2.GaussianBlur(result_with_contours, (5, 5), 0)
-
-    cv2.drawContours(result_with_contours, large_contours, -1, (0, 255, 0), 10)
+    result_with_contours = draw_contours(result_image, large_contours)
 
     file_name = os.path.splitext(os.path.basename(file_path))[0]
     cv2.imwrite(os.path.join(output_dir, f'{file_name}_processed.jpg'), result_with_contours)
@@ -113,6 +116,12 @@ def process_folder(input_folder, output_folder):
             print(f"Обработан файл: {filename}")
 
 
-input_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/figures'
-output_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/results'
-process_folder(input_folder, output_folder)
+def main():
+    input_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/figures'
+    output_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/results'
+
+    process_folder(input_folder, output_folder)
+
+
+if __name__ == "__main__":
+    main()
