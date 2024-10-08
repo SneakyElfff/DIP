@@ -74,11 +74,15 @@ def process_image(file_path, output_dir):
     # **Draw contours on the processed image**:
     # This will outline the detected blue objects
     result_with_contours = result.copy()
-    cv2.drawContours(result_with_contours, large_contours, -1, (0, 255, 0), 3)  # Green contours with thickness 3
+
+    # Размытие изображения для улучшения внешнего вида контуров
+    result_with_contours = cv2.GaussianBlur(result_with_contours, (5, 5), 0)
+
+    cv2.drawContours(result_with_contours, large_contours, -1, (0, 255, 0), 10)
 
     # Save final result with contours
     base_name = os.path.splitext(os.path.basename(file_path))[0]
-    cv2.imwrite(os.path.join(output_dir, f'{base_name}_final_result_with_contours.jpg'), result_with_contours)
+    cv2.imwrite(os.path.join(output_dir, f'{base_name}_processed.jpg'), result_with_contours)
 
     return original, result_with_contours
 
