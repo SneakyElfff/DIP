@@ -12,10 +12,10 @@ def isolate_objects(image):
     # конвертировать в HSV
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    lower_blue = np.array([90, 50, 50])
-    upper_blue = np.array([130, 255, 255])
+    lower_border_colour = np.array([90, 50, 50])
+    upper_border_colour = np.array([240, 255, 255])
 
-    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    mask = cv2.inRange(hsv, lower_border_colour, upper_border_colour)
 
     result = cv2.bitwise_and(image, image, mask=mask)
 
@@ -34,9 +34,6 @@ def filter_contours(contours, min_area=1000):
         area = cv2.contourArea(i)
 
         if area > min_area:
-            # Approximate the contour to detect its shape
-            approx = cv2.approxPolyDP(i, 0.02 * cv2.arcLength(i, True), True)
-
             # ограничить зону поиска
             x, y, w, h = cv2.boundingRect(i)
             aspect_ratio = w / float(h)
@@ -48,7 +45,7 @@ def filter_contours(contours, min_area=1000):
 
 
 def create_mask_from_contours(image_shape, contours):
-    mask = np.zeros(image_shape[:2], dtype=np.uint8)
+    mask = np.zeros(image_shape[:2], dtype=np.uint8)  # на основе w и h
 
     cv2.drawContours(mask, contours, -1, (255), -1)
 
@@ -72,7 +69,7 @@ def edit_image(file_path, output_dir):
     objects, colour_mask = isolate_objects(original_image)
 
     contours = find_contours(colour_mask)
-    large_contours = filter_contours(contours)  # отфильтровать объекты по площади и форме
+    large_contours = filter_contours(contours)
 
     final_mask = create_mask_from_contours(original_image.shape, large_contours)
     result_image = cv2.bitwise_and(original_image, original_image, mask=final_mask)
