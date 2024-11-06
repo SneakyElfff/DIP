@@ -1,81 +1,47 @@
 import cv2
 import numpy as np
-import os
 
-# Define paths
-input_folder = '/Users/nina/PycharmProjects/DIP/figures'
-output_folder = '/Users/nina/PycharmProjects/DIP/results'
+# Load the image
+image_path = '/Users/nina/PycharmProjects/DIP/figures/1695128011387.jpg'  # Replace this with your image path
+image = cv2.imread(image_path)
+output = image.copy()
 
-# Define HSV range to isolate blue color - adjusted range
-lower_blue = np.array([90, 30, 50])
+# Convert image to HSV color space for better isolation of blue tokens
+hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+# Define blue color range and create a mask
+lower_blue = np.array([90, 50, 70])
 upper_blue = np.array([240, 255, 255])
+mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-# Create output directory if it doesn't exist
-os.makedirs(output_folder, exist_ok=True)
+# Apply morphological operations to remove noise and smooth the mask
+kernel = np.ones((4, 4), np.uint8)
+mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-# Process each file in the input folder
-for filename in os.listdir(input_folder):
-    # Only process files with typical image extensions
-    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        # Construct full file paths
-        input_path = os.path.join(input_folder, filename)
-        output_path = os.path.join(output_folder, filename.replace('.', '_processed.'))
+# Use distance transform to separate overlapping objects
+dist_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+_, sure_fg = cv2.threshold(dist_transform, 0.5 * dist_transform.max(), 255, 0)
+sure_fg = np.uint8(sure_fg)
 
-        # Load the image
-        image = cv2.imread(input_path)
-        if image is None:
-            print(f"Skipping file {filename}: cannot read.")
-            continue
+# Identify unknown region (area between shapes)
+unknown = cv2.subtract(mask, sure_fg)
 
-        # Convert the image to HSV color space
-        image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+# Marker labeling for watershed
+num_labels, markers = cv2.connectedComponents(sure_fg)
+markers = markers + 1  # Increment all labels by 1 so background is not 0
+markers[unknown == 255] = 0  # Mark the unknown region with zero for watershed
 
-        # Create a mask for blue color
-        mask_blue = cv2.inRange(image_hsv, lower_blue, upper_blue)
+# Apply the watershed algorithm to separate overlapping objects
+markers = cv2.watershed(image, markers)
+output[markers == -1] = [0, 0, 255]  # Outline boundaries with red color
 
-        # Apply morphological operations to clean up the mask
-        kernel = np.ones((3, 3), np.uint8)
-        mask_cleaned = cv2.morphologyEx(mask_blue, cv2.MORPH_CLOSE, kernel)
-        mask_cleaned = cv2.morphologyEx(mask_cleaned, cv2.MORPH_OPEN, kernel)
+# Draw outlines for each unique component group
+for label in range(2, num_labels + 2):  # Skip the background label
+    mask = np.uint8(markers == label)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(output, contours, -1, (0, 255, 0), 10)  # Green outline for each group
 
-        # Use distance transform with adjusted threshold
-        dist_transform = cv2.distanceTransform(mask_cleaned, cv2.DIST_L2, 5)
-        _, dist_thresh = cv2.threshold(dist_transform, 0.8 * dist_transform.max(), 255, 0)
-        dist_thresh = np.uint8(dist_thresh)
-
-        # Find sure background and sure foreground
-        sure_bg = cv2.dilate(mask_cleaned, kernel, iterations=3)
-        sure_fg = dist_thresh
-
-        # Subtract sure foreground from sure background to get unknown region
-        unknown = cv2.subtract(sure_bg, sure_fg)
-
-        # Label markers for watershed
-        _, markers = cv2.connectedComponents(sure_fg)
-        markers = markers + 1
-        markers[unknown == 255] = 0
-
-        # Apply watershed algorithm
-        markers = cv2.watershed(image, markers)
-        output_image = image.copy()
-
-        # Find and draw contours
-        for marker in np.unique(markers):
-            if marker <= 1:  # Ignore background marker
-                continue
-
-            # Create a mask for each separated object
-            mask = np.zeros(markers.shape, dtype="uint8")
-            mask[markers == marker] = 255
-
-            # Find contours
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area > 1000:  # Adjust if needed based on token size
-                    cv2.drawContours(output_image, [cnt], -1, (0, 0, 255), 10)
-
-        # Save the result
-        cv2.imwrite(output_path, output_image)
-        print(f"Processed and saved: {output_path}")
+# Show the result
+cv2.imshow("Separated Overlapping Shapes", output)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
