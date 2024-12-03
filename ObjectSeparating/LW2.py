@@ -120,13 +120,23 @@ def process_image(image_path, output_dir):
             perimeter = calculate_perimeter(object_mask)
             aspect_ratio = calculate_aspect_ratio(object_mask)
 
+            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}, Aspect Ratio: {aspect_ratio:.2f}")
+
             object_features.append([area, perimeter, aspect_ratio])
             object_masks.append(object_mask)
             object_contours.append(contour)
 
-    # Perform k-means clustering
-    kmeans = KMeans(n_clusters=3, random_state=0)
-    labels = kmeans.fit_predict(object_features)
+    # Number of clusters
+    n_clusters = 3
+
+    # Perform k-means clustering only if there are enough objects
+    if len(object_features) > 0:
+        effective_clusters = min(n_clusters, len(object_features))
+        kmeans = KMeans(n_clusters=effective_clusters, random_state=0)
+        labels = kmeans.fit_predict(object_features)
+    else:
+        print(f"No objects found in {image_path}")
+        return
 
     # Define colors for each class
     class_colors = {
@@ -137,7 +147,7 @@ def process_image(image_path, output_dir):
 
     # Recolor objects based on their class
     for mask, label in zip(object_masks, labels):
-        color = class_colors[label]
+        color = class_colors[label % n_clusters]  # Handle fewer clusters
         output_image[mask > 0] = color
 
     # Save the final output
