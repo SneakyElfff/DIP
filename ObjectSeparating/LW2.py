@@ -25,6 +25,18 @@ def calculate_area(mask):
     return np.sum(mask) / 255  # Each white pixel represents an area unit
 
 
+def calculate_perimeter(mask):
+    """Calculate the perimeter of the object represented by the mask."""
+    # Эрозия маски для получения внутренних пикселей объекта
+    kernel = np.ones((3, 3), np.uint8)
+    eroded_mask = cv2.erode(mask, kernel, iterations=1)
+
+    # Граница объекта - это разность между объектом и его эрозией
+    boundary = mask - eroded_mask
+    perimeter = np.sum(boundary) / 255  # Подсчет белых пикселей на границе
+    return perimeter
+
+
 def process_image(image_path, output_dir):
     """Process a single image."""
     image = cv2.imread(image_path)
@@ -58,15 +70,8 @@ def process_image(image_path, output_dir):
         group_mask = np.zeros_like(cleaned_mask)
         cv2.drawContours(group_mask, [contour], -1, 255, thickness=cv2.FILLED)
 
-        # Enhance edges within the group mask (use Laplacian for subtle borders)
-        laplacian = cv2.Laplacian(group_mask, cv2.CV_64F)
-        enhanced_edges = cv2.convertScaleAbs(laplacian)
-
-        # Combine enhanced edges with the original group mask
-        combined_mask = cv2.bitwise_or(group_mask, enhanced_edges)
-
-        # Apply distance transform
-        dist_transform = cv2.distanceTransform(combined_mask, cv2.DIST_L2, 5)
+        # Apply watershed algorithm for segmentation
+        dist_transform = cv2.distanceTransform(group_mask, cv2.DIST_L2, 5)
         _, sure_fg = cv2.threshold(dist_transform, 0.6 * dist_transform.max(), 255, 0)
         sure_fg = np.uint8(sure_fg)
 
@@ -81,12 +86,13 @@ def process_image(image_path, output_dir):
         # Apply watershed algorithm to the current group
         markers = cv2.watershed(output_image, markers)
 
-        # Calculate and print the area of each object
+        # Calculate area and perimeter of each object
         for marker_id in range(2, np.max(markers) + 1):
             object_mask = np.zeros_like(markers, dtype=np.uint8)
             object_mask[markers == marker_id] = 255
             area = calculate_area(object_mask)
-            print(f"Object ID: {marker_id}, Area: {area}")
+            perimeter = calculate_perimeter(object_mask)
+            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}")
 
             random_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
             output_image[markers == marker_id] = random_color
