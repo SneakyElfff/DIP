@@ -37,6 +37,27 @@ def calculate_perimeter(mask):
     return perimeter
 
 
+def calculate_aspect_ratio(mask):
+    """
+    Calculate the aspect ratio (width/height) of the object represented by the mask.
+    """
+    # Получение координат всех белых пикселей (объектов)
+    y_coords, x_coords = np.where(mask > 0)
+
+    # Если объект отсутствует, 0
+    if len(x_coords) == 0 or len(y_coords) == 0:
+        return 0
+
+    min_x, max_x = np.min(x_coords), np.max(x_coords)
+    min_y, max_y = np.min(y_coords), np.max(y_coords)
+
+    width = max_x - min_x + 1
+    height = max_y - min_y + 1
+
+    aspect_ratio = width / height
+    return aspect_ratio
+
+
 def process_image(image_path, output_dir):
     """Process a single image."""
     image = cv2.imread(image_path)
@@ -86,13 +107,16 @@ def process_image(image_path, output_dir):
         # Apply watershed algorithm to the current group
         markers = cv2.watershed(output_image, markers)
 
-        # Calculate area and perimeter of each object
+        # Calculate properties of each object
         for marker_id in range(2, np.max(markers) + 1):
             object_mask = np.zeros_like(markers, dtype=np.uint8)
             object_mask[markers == marker_id] = 255
+
             area = calculate_area(object_mask)
             perimeter = calculate_perimeter(object_mask)
-            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}")
+            aspect_ratio = calculate_aspect_ratio(object_mask)
+
+            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}, Aspect Ratio: {aspect_ratio:.2f}")
 
             random_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
             output_image[markers == marker_id] = random_color
