@@ -3,9 +3,9 @@ import numpy as np
 import random
 import os
 
+
 def enhance_image(image):
-    """Увеличение насыщенности и контраста изображения."""
-    # Преобразование в HSV для увеличения насыщенности
+    """Increase saturation and contrast of the image."""
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     saturation_scale = 2.5  # Коэффициент увеличения насыщенности
     hsv_image[:, :, 1] = np.clip(hsv_image[:, :, 1] * saturation_scale, 0, 255)
@@ -19,8 +19,14 @@ def enhance_image(image):
 
     return enhanced_image
 
+
+def calculate_area(mask):
+    """Calculate the area of the object represented by the mask."""
+    return np.sum(mask) / 255  # Each white pixel represents an area unit
+
+
 def process_image(image_path, output_dir):
-    """Обработка одного изображения."""
+    """Process a single image."""
     image = cv2.imread(image_path)
 
     # Enhance the image (increase saturation and contrast)
@@ -75,8 +81,13 @@ def process_image(image_path, output_dir):
         # Apply watershed algorithm to the current group
         markers = cv2.watershed(output_image, markers)
 
-        # Assign random colors to each separated object
-        for marker_id in range(2, np.max(markers) + 1):  # Skip background and boundary
+        # Calculate and print the area of each object
+        for marker_id in range(2, np.max(markers) + 1):
+            object_mask = np.zeros_like(markers, dtype=np.uint8)
+            object_mask[markers == marker_id] = 255
+            area = calculate_area(object_mask)
+            print(f"Object ID: {marker_id}, Area: {area}")
+
             random_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
             output_image[markers == marker_id] = random_color
 
@@ -85,6 +96,7 @@ def process_image(image_path, output_dir):
     output_path = os.path.join(output_dir, output_filename)
     cv2.imwrite(output_path, output_image)
     print(f"Processed: {image_path}, saved to {output_path}")
+
 
 # Define the input and output directories
 input_dir = "/Users/nina/PycharmProjects/DIP/figures"
