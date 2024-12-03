@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
-import random
 import os
+from sklearn.cluster import KMeans
 
 
 def enhance_image(image):
@@ -85,7 +85,11 @@ def process_image(image_path, output_dir):
     # Prepare an output image
     output_image = image.copy()
 
-    # Process each group independently
+    # Initialize data for clustering
+    object_features = []  # Features: [area, perimeter, aspect_ratio]
+    object_masks = []     # Corresponding masks for recoloring
+    object_contours = []  # Contours for drawing
+
     for i, contour in enumerate(contours):
         # Create a mask for the individual group
         group_mask = np.zeros_like(cleaned_mask)
@@ -107,7 +111,7 @@ def process_image(image_path, output_dir):
         # Apply watershed algorithm to the current group
         markers = cv2.watershed(output_image, markers)
 
-        # Calculate properties of each object
+        # Extract features for each object
         for marker_id in range(2, np.max(markers) + 1):
             object_mask = np.zeros_like(markers, dtype=np.uint8)
             object_mask[markers == marker_id] = 255
@@ -116,16 +120,31 @@ def process_image(image_path, output_dir):
             perimeter = calculate_perimeter(object_mask)
             aspect_ratio = calculate_aspect_ratio(object_mask)
 
-            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}, Aspect Ratio: {aspect_ratio:.2f}")
+            object_features.append([area, perimeter, aspect_ratio])
+            object_masks.append(object_mask)
+            object_contours.append(contour)
 
-            random_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
-            output_image[markers == marker_id] = random_color
+    # Perform k-means clustering
+    kmeans = KMeans(n_clusters=3, random_state=0)
+    labels = kmeans.fit_predict(object_features)
+
+    # Define colors for each class
+    class_colors = {
+        0: (0, 0, 255),   # Class 1: Red
+        1: (255, 0, 0),   # Class 2: Blue
+        2: (0, 255, 0)    # Class 3: Green
+    }
+
+    # Recolor objects based on their class
+    for mask, label in zip(object_masks, labels):
+        color = class_colors[label]
+        output_image[mask > 0] = color
 
     # Save the final output
-    output_filename = os.path.basename(image_path).replace('.jpg', '_processed.jpg')
+    output_filename = os.path.basename(image_path).replace('.jpg', '_clustered.jpg')
     output_path = os.path.join(output_dir, output_filename)
     cv2.imwrite(output_path, output_image)
-    print(f"Processed: {image_path}, saved to {output_path}")
+    print(f"Processed with clustering: {image_path}, saved to {output_path}")
 
 
 # Define the input and output directories
