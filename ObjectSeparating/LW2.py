@@ -3,6 +3,8 @@ import numpy as np
 import os
 from sklearn.cluster import KMeans
 
+from ImageFiltering.LW1 import display_images
+
 
 def enhance_image(image):
     """Increase saturation and contrast of the image."""
@@ -158,8 +160,12 @@ def cluster_objects_and_recolor(output_image, object_features, object_masks, ima
 def process_image(image_path, output_dir):
     """Process a single image by integrating the helper methods."""
     image, cleaned_mask = preprocess_image(image_path)
+
     object_features, object_masks = generate_markers_and_features(cleaned_mask, image)
-    cluster_objects_and_recolor(image, object_features, object_masks, image_path, output_dir)
+
+    clustered_image = image.copy()
+    cluster_objects_and_recolor(clustered_image, object_features, object_masks, image_path, output_dir)
+    display_images(image, clustered_image, f"Кластеризация объектов изображения {image_path}")
 
 
 def process_directory(input_dir, output_dir):
