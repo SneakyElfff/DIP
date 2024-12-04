@@ -58,12 +58,12 @@ def calculate_aspect_ratio(mask):
     return aspect_ratio
 
 
-def process_image(image_path, output_dir):
-    """Process a single image."""
+def preprocess_image(image_path):
+    """Load, enhance the image, and prepare the cleaned mask."""
     image = cv2.imread(image_path)
-    image = enhance_image(image)
+    enhanced_image = enhance_image(image)
 
-    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hsv_image = cv2.cvtColor(enhanced_image, cv2.COLOR_BGR2HSV)
 
     lower_border_colour = np.array([100, 100, 50])
     upper_border_colour = np.array([140, 255, 255])
@@ -74,14 +74,18 @@ def process_image(image_path, output_dir):
     kernel = np.ones((19, 19), np.uint8)
     cleaned_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
 
+    return enhanced_image, cleaned_mask
+
+
+def generate_markers_and_features(cleaned_mask, output_image):
+    """Generate markers using watershed and calculate object features."""
     contours, _ = cv2.findContours(cleaned_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    output_image = image.copy()
-
-    # Initialize data for clustering
     object_features = []  # Features: [area, perimeter, aspect_ratio]
     object_masks = []     # Corresponding masks for recoloring
     object_contours = []  # Contours for drawing
+
+    object_id = 1
 
     for i, contour in enumerate(contours):
         # Create a mask for the individual group
@@ -111,12 +115,19 @@ def process_image(image_path, output_dir):
             perimeter = calculate_perimeter(object_mask)
             aspect_ratio = calculate_aspect_ratio(object_mask)
 
-            print(f"Object ID: {marker_id}, Area: {area}, Perimeter: {perimeter}, Aspect Ratio: {aspect_ratio:.2f}")
+            print(f"Object: {object_id}, Area: {area}, Perimeter: {perimeter}, Aspect Ratio: {aspect_ratio:.2f}")
 
             object_features.append([area, perimeter, aspect_ratio])
             object_masks.append(object_mask)
             object_contours.append(contour)
 
+            object_id += 1
+
+    return object_features, object_masks
+
+
+def cluster_objects_and_recolor(output_image, object_features, object_masks, image_path, output_dir):
+    """Cluster the objects and apply colors based on clustering results."""
     n_clusters = 3
 
     # Perform k-means clustering only if there are enough objects
@@ -142,6 +153,13 @@ def process_image(image_path, output_dir):
     output_path = os.path.join(output_dir, output_filename)
     cv2.imwrite(output_path, output_image)
     print(f"Processed with clustering: {image_path}, saved to {output_path}")
+
+
+def process_image(image_path, output_dir):
+    """Process a single image by integrating the helper methods."""
+    image, cleaned_mask = preprocess_image(image_path)
+    object_features, object_masks = generate_markers_and_features(cleaned_mask, image)
+    cluster_objects_and_recolor(image, object_features, object_masks, image_path, output_dir)
 
 
 def process_directory(input_dir, output_dir):
