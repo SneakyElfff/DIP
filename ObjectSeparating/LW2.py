@@ -144,12 +144,22 @@ def process_image(image_path, output_dir):
     print(f"Processed with clustering: {image_path}, saved to {output_path}")
 
 
-input_dir = "/Users/nina/PycharmProjects/DIP/figures"
-output_dir = "/Users/nina/PycharmProjects/DIP/results"
+def process_directory(input_dir, output_dir):
+    """Process all images in a directory."""
+    os.makedirs(output_dir, exist_ok=True)
 
-os.makedirs(output_dir, exist_ok=True)
+    for filename in os.listdir(input_dir):
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            image_path = os.path.join(input_dir, filename)
+            process_image(image_path, output_dir)
 
-for filename in os.listdir(input_dir):
-    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        image_path = os.path.join(input_dir, filename)
-        process_image(image_path, output_dir)
+
+def main():
+    input_dir = "/Users/nina/PycharmProjects/DIP/figures"
+    output_dir = "/Users/nina/PycharmProjects/DIP/results"
+
+    process_directory(input_dir, output_dir)
+
+
+if __name__ == "__main__":
+    main()
