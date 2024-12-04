@@ -98,7 +98,7 @@ def generate_markers_and_features(cleaned_mask, output_image):
 
         # расстояние до ближайшего фона
         dist_transform = cv2.distanceTransform(group_mask, cv2.DIST_L2, 5)
-        # помечаются центры объектов
+        # выделяются центры объектов
         _, sure_fg = cv2.threshold(dist_transform, 0.6 * dist_transform.max(), 255, 0)
         sure_fg = np.uint8(sure_fg)
 
@@ -150,7 +150,7 @@ def cluster_objects_and_recolor(output_image, object_features, object_masks, ima
     }
 
     for mask, label in zip(object_masks, labels):
-        color = class_colors[label % n_clusters]  # Handle fewer clusters
+        color = class_colors[label % n_clusters]
         output_image[mask > 0] = color
 
     output_filename = os.path.basename(image_path).replace('.jpg', '_clustered.jpg')
@@ -170,7 +170,7 @@ def process_image(image_path, output_dir):
     display_images(image, clustered_image, f"Кластеризация объектов изображения {image_path}")
 
 
-def process_directory(input_dir, output_dir):
+def process_folder(input_dir, output_dir):
     """Process all images in a directory."""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -184,7 +184,7 @@ def main():
     input_dir = "/Users/nina/PycharmProjects/DIP/figures"
     output_dir = "/Users/nina/PycharmProjects/DIP/results"
 
-    process_directory(input_dir, output_dir)
+    process_folder(input_dir, output_dir)
 
 
 if __name__ == "__main__":
