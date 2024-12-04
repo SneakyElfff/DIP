@@ -9,14 +9,16 @@ from ImageFiltering.LW1 import display_images
 def enhance_image(image):
     """Increase saturation and contrast of the image."""
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    saturation_scale = 2.5  # Коэффициент увеличения насыщенности
+    saturation_scale = 2.5
+    # ограничить значения матрицы насыщенности до допустимых пределов
     hsv_image[:, :, 1] = np.clip(hsv_image[:, :, 1] * saturation_scale, 0, 255)
     image_with_boosted_saturation = cv2.cvtColor(hsv_image, cv2.COLOR_HSV2BGR)
 
-    # Преобразование в YUV для повышения контраста
+    # Y - яркость
     yuv_image = cv2.cvtColor(image_with_boosted_saturation, cv2.COLOR_BGR2YUV)
+    # улучшить локальный контраст изображения
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    yuv_image[:, :, 0] = clahe.apply(yuv_image[:, :, 0])  # Применение CLAHE к яркости
+    yuv_image[:, :, 0] = clahe.apply(yuv_image[:, :, 0])
     enhanced_image = cv2.cvtColor(yuv_image, cv2.COLOR_YUV2BGR)
 
     return enhanced_image
@@ -24,18 +26,18 @@ def enhance_image(image):
 
 def calculate_area(mask):
     """Calculate the area of the object represented by the mask."""
-    return np.sum(mask) / 255  # Each white pixel represents an area unit
+    return np.sum(mask) / 255
 
 
 def calculate_perimeter(mask):
     """Calculate the perimeter of the object represented by the mask."""
-    # Эрозия маски для получения внутренних пикселей объекта
+    # стирание пикселей с краев
     kernel = np.ones((3, 3), np.uint8)
+    # если хотя бы один пиксель из соседей фона (0), центральный пиксель также становится фоном
     eroded_mask = cv2.erode(mask, kernel, iterations=1)
 
-    # Граница объекта - это разность между объектом и его эрозией
     boundary = mask - eroded_mask
-    perimeter = np.sum(boundary) / 255  # Подсчет белых пикселей на границе
+    perimeter = np.sum(boundary) / 255
     return perimeter
 
 
@@ -43,13 +45,14 @@ def calculate_aspect_ratio(mask):
     """
     Calculate the aspect ratio (width/height) of the object represented by the mask.
     """
-    # Получение координат всех белых пикселей (объектов)
+    # координаты всех белых пикселей (объектов)
     y_coords, x_coords = np.where(mask > 0)
 
-    # Если объект отсутствует, 0
+    # сли объект отсутствует
     if len(x_coords) == 0 or len(y_coords) == 0:
         return 0
 
+    # границы объекта
     min_x, max_x = np.min(x_coords), np.max(x_coords)
     min_y, max_y = np.min(y_coords), np.max(y_coords)
 
@@ -72,8 +75,8 @@ def preprocess_image(image_path):
 
     blue_mask = cv2.inRange(hsv_image, lower_border_colour, upper_border_colour)
 
-    # Morphological operation to clean the mask
     kernel = np.ones((19, 19), np.uint8)
+    # дилатация -> эрозия, заполнение "дыр"
     cleaned_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
 
     return enhanced_image, cleaned_mask
@@ -83,28 +86,27 @@ def generate_markers_and_features(cleaned_mask, output_image):
     """Generate markers using watershed and calculate object features."""
     contours, _ = cv2.findContours(cleaned_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    object_features = []  # Features: [area, perimeter, aspect_ratio]
-    object_masks = []     # Corresponding masks for recoloring
-    object_contours = []  # Contours for drawing
+    object_features = []  # [area, perimeter, aspect_ratio]
+    object_masks = []
+    object_contours = []
 
     object_id = 1
 
     for i, contour in enumerate(contours):
-        # Create a mask for the individual group
         group_mask = np.zeros_like(cleaned_mask)
         cv2.drawContours(group_mask, [contour], -1, 255, thickness=cv2.FILLED)
 
-        # Apply watershed algorithm for segmentation
+        # расстояние до ближайшего фона
         dist_transform = cv2.distanceTransform(group_mask, cv2.DIST_L2, 5)
+        # помечаются центры объектов
         _, sure_fg = cv2.threshold(dist_transform, 0.6 * dist_transform.max(), 255, 0)
         sure_fg = np.uint8(sure_fg)
 
-        # Find unknown regions (overlapping areas)
+        # найти неизвестные области (границ перекрывающихся объектов)
         unknown = cv2.subtract(group_mask, sure_fg)
 
-        # Marker labeling
         _, markers = cv2.connectedComponents(sure_fg)
-        markers = markers + 1  # Ensure background is not 0
+        markers = markers + 1  # фон - 1
         markers[unknown == 255] = 0
 
         markers = cv2.watershed(output_image, markers)
@@ -121,7 +123,7 @@ def generate_markers_and_features(cleaned_mask, output_image):
 
             object_features.append([area, perimeter, aspect_ratio])
             object_masks.append(object_mask)
-            object_contours.append(contour)
+            # object_contours.append(contour)
 
             object_id += 1
 
@@ -132,9 +134,9 @@ def cluster_objects_and_recolor(output_image, object_features, object_masks, ima
     """Cluster the objects and apply colors based on clustering results."""
     n_clusters = 3
 
-    # Perform k-means clustering only if there are enough objects
     if len(object_features) > 0:
         effective_clusters = min(n_clusters, len(object_features))
+        # результат алгоритма одинаковый при каждом запуске
         kmeans = KMeans(n_clusters=effective_clusters, random_state=0)
         labels = kmeans.fit_predict(object_features)
     else:
