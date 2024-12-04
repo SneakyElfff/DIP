@@ -61,28 +61,21 @@ def calculate_aspect_ratio(mask):
 def process_image(image_path, output_dir):
     """Process a single image."""
     image = cv2.imread(image_path)
-
-    # Enhance the image (increase saturation and contrast)
     image = enhance_image(image)
 
-    # Convert the image to HSV color space
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    # Define the HSV range for blue
-    lower_blue = np.array([100, 100, 50])
-    upper_blue = np.array([140, 255, 255])
+    lower_border_colour = np.array([100, 100, 50])
+    upper_border_colour = np.array([140, 255, 255])
 
-    # Create a mask for blue regions
-    blue_mask = cv2.inRange(hsv_image, lower_blue, upper_blue)
+    blue_mask = cv2.inRange(hsv_image, lower_border_colour, upper_border_colour)
 
     # Morphological operation to clean the mask
     kernel = np.ones((19, 19), np.uint8)
     cleaned_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_CLOSE, kernel)
 
-    # Find contours to isolate the groups
     contours, _ = cv2.findContours(cleaned_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Prepare an output image
     output_image = image.copy()
 
     # Initialize data for clustering
@@ -108,10 +101,8 @@ def process_image(image_path, output_dir):
         markers = markers + 1  # Ensure background is not 0
         markers[unknown == 255] = 0
 
-        # Apply watershed algorithm to the current group
         markers = cv2.watershed(output_image, markers)
 
-        # Extract features for each object
         for marker_id in range(2, np.max(markers) + 1):
             object_mask = np.zeros_like(markers, dtype=np.uint8)
             object_mask[markers == marker_id] = 255
@@ -126,7 +117,6 @@ def process_image(image_path, output_dir):
             object_masks.append(object_mask)
             object_contours.append(contour)
 
-    # Number of clusters
     n_clusters = 3
 
     # Perform k-means clustering only if there are enough objects
@@ -138,33 +128,27 @@ def process_image(image_path, output_dir):
         print(f"No objects found in {image_path}")
         return
 
-    # Define colors for each class
     class_colors = {
         0: (0, 0, 255),   # Class 1: Red
         1: (255, 0, 0),   # Class 2: Blue
         2: (0, 255, 0)    # Class 3: Green
     }
 
-    # Recolor objects based on their class
     for mask, label in zip(object_masks, labels):
         color = class_colors[label % n_clusters]  # Handle fewer clusters
         output_image[mask > 0] = color
 
-    # Save the final output
     output_filename = os.path.basename(image_path).replace('.jpg', '_clustered.jpg')
     output_path = os.path.join(output_dir, output_filename)
     cv2.imwrite(output_path, output_image)
     print(f"Processed with clustering: {image_path}, saved to {output_path}")
 
 
-# Define the input and output directories
 input_dir = "/Users/nina/PycharmProjects/DIP/figures"
 output_dir = "/Users/nina/PycharmProjects/DIP/results"
 
-# Create the output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)
 
-# Process all images in the input directory
 for filename in os.listdir(input_dir):
     if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
         image_path = os.path.join(input_dir, filename)
