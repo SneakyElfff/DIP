@@ -1,66 +1,61 @@
+import os
+
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize
-from matplotlib import pyplot as plt
 from torch import optim
+from tabulate import tabulate
 
-# Constants
 BATCH_SIZE = 64
 NUM_EPOCHS = 3
 
-# Device configuration
 device = (
     torch.device("cuda") if torch.cuda.is_available()
     else torch.device("mps") if torch.backends.mps.is_available()
     else torch.device("cpu")
 )
 
-# Data transformation
-transform = Compose([
-    ToTensor(),
-    Normalize(mean=[0.5], std=[0.5])
-])
 
-# Datasets and Dataloaders
-train_validation_data = MNIST('.', train=True, transform=transform, download=True)
-test_data = MNIST('.', train=False, transform=transform, download=True)
+def prepare_dataloaders(batch_size):
+    transform = Compose([
+        ToTensor(),
+        Normalize(mean=[0.5], std=[0.5])
+    ])
 
-train_data, validation_data = random_split(train_validation_data, [50000, 10000])
+    # загрузить MNIST-датасеты
+    mnist_train_validation = MNIST('.', train=True, transform=transform, download=True)
+    mnist_test = MNIST('.', train=False, transform=transform, download=True)
 
-train_dataloader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-validation_dataloader = DataLoader(dataset=validation_data, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
-test_dataloader = DataLoader(dataset=test_data, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    train_size, validation_size = 50000, 10000
+    train_dataset, validation_dataset = random_split(mnist_train_validation, [train_size, validation_size])
 
-# Sample visualization
-X, y = next(iter(train_dataloader))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    test_loader = DataLoader(mnist_test, batch_size=batch_size, shuffle=False, drop_last=True)
 
-plt.figure(figsize=(12, 5))
-for i in range(15):
-    x, y = next(iter(train_dataloader))
-    plt.subplot(3, 5, i + 1)
-    plt.title(f'{y[0]}')
-    plt.imshow(x[0].squeeze(), cmap='gray')
-plt.axis('off')
-plt.tight_layout()
-plt.show()
+    return train_loader, validation_loader, test_loader
 
-# Model definition
-class MyModel(nn.Module):
+
+# архитектура сверточной нейросети
+class ModelArchitecture(nn.Module):
     def __init__(self):
-        super(MyModel, self).__init__()
-        self.model = nn.Sequential(
+        super(ModelArchitecture, self).__init__()
+        self.layers = nn.Sequential(
+            # первый сверточный блок
             nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
+            # второй сверточный блок
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
+            # Flatten for fully connected layers
             nn.Flatten(),
             nn.Linear(64 * 7 * 7, 100),
             nn.BatchNorm1d(100),
@@ -70,83 +65,104 @@ class MyModel(nn.Module):
         )
 
     def forward(self, x):
-        return self.model(x)
+        return self.layers(x)
 
-# Loss function and optimizer
-loss_function = nn.CrossEntropyLoss()
-model = MyModel().to(device)
-optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
 
-# Training function
-def train_model(model, train_loader, val_loader, loss_function, optimizer, device, epochs):
-    train_loss_hist, val_loss_hist, val_acc_hist = [], [], []
+def train_model(model, train_loader, validation_loader, loss_function, optimizer, device, num_epochs):
+    train_losses = []
+    validation_losses = []
+    validation_accuracies = []
 
-    for epoch in range(epochs):
-        # Training
+    for epoch in range(num_epochs):
+        print('Epoch {}/{}'.format(epoch + 1, num_epochs), 'started...')
+        # фаза обучения
         model.train()
-        total_loss = 0
-        for X, y in train_loader:
-            X, y = X.to(device), y.to(device)
+        total_train_loss = 0
+        for batch_data, batch_labels in train_loader:
+            batch_data, batch_labels = batch_data.to(device), batch_labels.to(device)
+
             optimizer.zero_grad()
-            pred = model(X)
-            loss = loss_function(pred, y)
+            predictions = model(batch_data)
+            loss = loss_function(predictions, batch_labels)
             loss.backward()
             optimizer.step()
-            total_loss += loss.item()
-        train_loss_hist.append(total_loss / len(train_loader))
+            total_train_loss += loss.item()
 
-        # Validation
+        avg_train_loss = total_train_loss / len(train_loader)
+        train_losses.append(avg_train_loss)
+
+        # фаза валидации
         model.eval()
-        val_loss, correct_predictions, total_samples = 0, 0, 0
+        total_validation_loss = 0
+        correct_predictions = 0
+        total_samples = 0
         with torch.no_grad():
-            for X, y in val_loader:
-                X, y = X.to(device), y.to(device)
-                pred = model(X)
-                val_loss += loss_function(pred, y).item()
-                correct_predictions += (pred.argmax(1) == y).sum().item()
-                total_samples += y.size(0)
-        val_loss_hist.append(val_loss / len(val_loader))
-        val_acc_hist.append(100 * correct_predictions / total_samples)
+            for valid_data, valid_labels in validation_loader:
+                valid_data, valid_labels = valid_data.to(device), valid_labels.to(device)
 
-        # Output progress
-        print(f"Epoch {epoch + 1}/{epochs}")
-        print(f"Train Loss: {train_loss_hist[-1]:.4f}")
-        print(f"Validation Loss: {val_loss_hist[-1]:.4f}, Validation Accuracy: {val_acc_hist[-1]:.2f}%")
+                predictions = model(valid_data)
+                total_validation_loss += loss_function(predictions, valid_labels).item()
+                correct_predictions += (predictions.argmax(dim=1) == valid_labels).sum().item()
+                total_samples += valid_labels.size(0)
 
-    return train_loss_hist, val_loss_hist, val_acc_hist
+        avg_validation_loss = total_validation_loss / len(validation_loader)
+        validation_accuracy = 100 * correct_predictions / total_samples
 
-# Save model function
-def save_model(model, path):
-    torch.save(model.state_dict(), path)
-    print(f"Model saved to {path}")
+        validation_losses.append(avg_validation_loss)
+        validation_accuracies.append(validation_accuracy)
 
-# Load model function
-def load_model(model, path):
-    model.load_state_dict(torch.load(path, map_location=device))
+    table_data = [
+        [epoch + 1, train_losses[epoch], validation_losses[epoch], validation_accuracies[epoch]]
+        for epoch in range(num_epochs)
+    ]
+
+    headers = ["Epoch", "Train Loss", "Validation Loss", "Validation Accuracy"]
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
+    return train_losses, validation_losses, validation_accuracies
+
+
+def test_model(model, test_loader, loss_function, device):
     model.eval()
-    print(f"Model loaded from {path}")
+    total_test_loss = 0
+    total_correct_predictions = 0
+    with torch.no_grad():
+        for test_data, test_labels in test_loader:
+            test_data, test_labels = test_data.to(device), test_labels.to(device)
+            predictions = model(test_data)
 
-# Training or Loading
-model_path = "mnist_model.pth"
-try:
-    load_model(model, model_path)
-except FileNotFoundError:
-    print("Model not found. Starting training...")
-    train_loss_hist, val_loss_hist, val_acc_hist = train_model(
-        model, train_dataloader, validation_dataloader, loss_function, optimizer, device, NUM_EPOCHS
-    )
-    save_model(model, model_path)
+            total_test_loss += loss_function(predictions, test_labels).item()
+            total_correct_predictions += (predictions.argmax(dim=1) == test_labels).sum().item()
 
-# Testing
-test_loss, test_accuracy = 0, 0
-model.eval()
-with torch.no_grad():
-    for X, y in test_dataloader:
-        X, y = X.to(device), y.to(device)
-        pred = model(X)
-        test_loss += loss_function(pred, y).item()
-        test_accuracy += (pred.argmax(1) == y).sum().item()
+    avg_test_loss = total_test_loss / len(test_loader)
+    test_accuracy_percentage = 100 * total_correct_predictions / len(test_loader.dataset)
 
-test_loss /= len(test_dataloader)
-test_accuracy = 100 * test_accuracy / len(test_dataloader.dataset)
-print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
+    print(f"Test Loss: {avg_test_loss:.4f}")
+    print(f"Test Accuracy: {test_accuracy_percentage:.2f}%")
+
+
+def main():
+    train_loader, validation_loader, test_loader = prepare_dataloaders(BATCH_SIZE)
+
+    model = ModelArchitecture().to(device)
+    loss_function = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
+
+    model_save_path = "mnist_cnn_model.pth"
+    try:
+        model.load_state_dict(torch.load(model_save_path, map_location=device))
+        model.eval()
+        print("Model's been successfully loaded.")
+    except FileNotFoundError:
+        print("Training a new model...")
+        train_model(
+            model, train_loader, validation_loader, loss_function, optimizer, device, NUM_EPOCHS
+        )
+        torch.save(model.state_dict(), model_save_path)
+        print("Model's been trained and saved.")
+
+    test_model(model, test_loader, loss_function, device)
+
+
+if __name__ == "__main__":
+    main()
