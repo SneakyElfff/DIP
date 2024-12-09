@@ -2,6 +2,7 @@ import os
 import cv2
 import torch
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy.ndimage import center_of_mass
 import torchvision
 from torchvision.transforms import Compose, ToPILImage, Resize, ToTensor, Normalize
@@ -62,6 +63,7 @@ def convert_to_mnist(mask, contour):
     scale = min(20 / digit_image.shape[0], 20 / digit_image.shape[1])
     new_w, new_h = int(digit_image.shape[1] * scale), int(digit_image.shape[0] * scale)
     resized_digit = cv2.resize(digit_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
     centered_digit = np.zeros((20, 20), dtype=np.uint8)
     centered_digit[(20 - new_h) // 2:(20 - new_h) // 2 + new_h,
                    (20 - new_w) // 2:(20 - new_w) // 2 + new_w] = resized_digit

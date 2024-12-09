@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn  # для создания нейронных сетей
 from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize
@@ -29,6 +29,7 @@ def prepare_dataloaders(batch_size):
     train_size, validation_size = 50000, 10000
     train_dataset, validation_dataset = random_split(mnist_train_validation, [train_size, validation_size])
 
+    # последние данные обрезаются, если их меньше, чем BATCH_SIZE
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     test_loader = DataLoader(mnist_test, batch_size=batch_size, shuffle=False, drop_last=True)
@@ -41,25 +42,26 @@ class ModelArchitecture(nn.Module):
     def __init__(self):
         super(ModelArchitecture, self).__init__()
         self.layers = nn.Sequential(
-            # первый сверточный блок
+            # первый сверточный блок (базовые признаки)
             nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
-            nn.ReLU(),
+            nn.ReLU(),  # активационная функция
+            # уменьшение карты признаков: max в каждом окне
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            # второй сверточный блок
+            # второй сверточный блок (формы, детали)
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            # Flatten for fully connected layers
+            # полносвязные слови
             nn.Flatten(),
             nn.Linear(64 * 7 * 7, 100),
             nn.BatchNorm1d(100),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(100, 10)
+            nn.Dropout(0.5),  # вероятность “отключения” нейронов
+            nn.Linear(100, 10)  # вх. нейроны -> вых. классы
         )
 
     def forward(self, x):
@@ -83,7 +85,7 @@ def train_model(model, train_loader, validation_loader, loss_function, optimizer
             predictions = model(batch_data)
             loss = loss_function(predictions, batch_labels)
             loss.backward()
-            optimizer.step()
+            optimizer.step()  # обновление градиентов
             total_train_loss += loss.item()
 
         avg_train_loss = total_train_loss / len(train_loader)
@@ -143,6 +145,7 @@ def main():
     train_loader, validation_loader, test_loader = prepare_dataloaders(BATCH_SIZE)
 
     model = ModelArchitecture().to(device)
+    # разница между предсказанным распределением вероятностей и истинным классом
     loss_function = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
 
