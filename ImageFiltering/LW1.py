@@ -91,7 +91,7 @@ def display_images(original, processed, title):
 
     plt.subplot(122)
     plt.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
-    plt.title('Обработанное с контурами')
+    plt.title('Обработанное')
     plt.axis('off')
 
     plt.suptitle(title)
@@ -114,8 +114,8 @@ def process_folder(input_folder, output_folder):
 
 
 def main():
-    input_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/figures'
-    output_folder = '/Users/nina/PycharmProjects/DIP/ImageFiltering/results'
+    input_folder = '/Users/nina/Downloads/figures'
+    output_folder = '/Users/nina/PycharmProjects/DIP/results'
 
     process_folder(input_folder, output_folder)
 
